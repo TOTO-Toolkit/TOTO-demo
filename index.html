@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="TOTO public interactive demonstration and modular Windows download">
+    <title>TOTO · Open Tracking and Observation</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="TOTO home">
+        <img src="assets/toto-logo-long.png" alt="TOTO — Toolkit for Open Tracking and Observation">
+      </a>
+      <nav class="nav" aria-label="Primary navigation">
+        <a href="#demo" data-i18n="nav_demo">Demo</a>
+        <a href="#download" data-i18n="nav_download">Download</a>
+        <a href="https://github.com/TOTO-Toolkit/TOTO-public/releases" data-i18n="nav_releases">Releases</a>
+        <select id="language" aria-label="Language">
+          <option value="en">🇬🇧 English</option>
+          <option value="es">🇵🇪 Español</option>
+          <option value="pt">🇧🇷 Português</option>
+          <option value="it">🇮🇹 Italiano</option>
+          <option value="fr">🇫🇷 Français</option>
+          <option value="de">🇩🇪 Deutsch</option>
+          <option value="ja">🇯🇵 日本語</option>
+          <option value="zh">🇨🇳 中文</option>
+          <option value="ru">🇷🇺 Русский</option>
+        </select>
+        <button id="theme" class="icon-button" type="button" aria-label="Toggle theme">◐</button>
+      </nav>
+    </header>
+
+    <main id="top" class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">TOTO</p>
+          <h1 data-i18n="hero_title">Explore tracking before installing.</h1>
+          <p class="hero-copy" data-i18n="hero_copy">A small, synthetic browser demo for the interaction flow. Your videos, models and calibrations stay local in the desktop application.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#demo" data-i18n="try_demo">Try the demo</a>
+            <a class="button secondary" id="download-hero" href="https://github.com/TOTO-Toolkit/TOTO-public/releases/download/v0.2.0-public-beta.2/TOTO-Setup-Web.exe" data-i18n="download_windows">Download Windows installer</a>
+          </div>
+        </div>
+        <aside class="trust-card">
+          <span class="status-dot"></span>
+          <strong data-i18n="local_first">Local-first by design</strong>
+          <span data-i18n="no_upload">No upload · no account · no private data in this demo</span>
+        </aside>
+      </section>
+
+      <section id="demo" class="demo-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow" data-i18n="interactive_label">INTERACTIVE PREVIEW</p>
+            <h2 data-i18n="demo_title">Review a tracked frame</h2>
+          </div>
+          <span class="demo-badge" data-i18n="synthetic">Synthetic data</span>
+        </div>
+        <div class="demo-grid">
+          <div class="viewer-card">
+            <div class="viewer-toolbar">
+              <button id="play" class="button small primary" type="button" data-i18n="play">Play</button>
+              <label class="frame-control"><span data-i18n="frame">Frame</span> <input id="frame" type="range" min="1" max="120" value="34"><output id="frame-value">34 / 120</output></label>
+              <label class="switch"><input id="overlay" type="checkbox" checked><span></span><span data-i18n="overlay">Overlay</span></label>
+            </div>
+            <canvas id="viewer" width="960" height="600" aria-label="Synthetic tracking viewer"></canvas>
+            <div class="viewer-status"><span id="viewer-message" data-i18n="ready">Ready for review</span><span id="roi-status" data-i18n="roi_none">No ROI selected</span></div>
+          </div>
+          <aside class="controls-card">
+            <div class="control-group">
+              <label for="person" data-i18n="person">Person</label>
+              <select id="person"><option value="0">Person 1 · ranked subject</option><option value="1">Person 2</option><option value="2">Person 3</option></select>
+            </div>
+            <div class="control-group">
+              <label data-i18n="visuals">Visual layers</label>
+              <label class="check"><input id="skeleton" type="checkbox" checked><span data-i18n="skeleton">Skeleton</span></label>
+              <label class="check"><input id="boxes" type="checkbox" checked><span data-i18n="boxes">Bounding box</span></label>
+            </div>
+            <div class="control-group">
+              <label for="zoom"><span data-i18n="zoom">Zoom</span> <output id="zoom-value">100%</output></label>
+              <input id="zoom" type="range" min="75" max="150" value="100">
+            </div>
+            <div class="control-group roi-tools">
+              <div class="row-between"><label data-i18n="roi">ROI</label><button id="clear-roi" class="text-button" type="button" data-i18n="clear">Clear</button></div>
+              <div class="button-row"><button id="roi-draw" class="button small secondary" type="button" data-i18n="draw_roi">Draw ROI</button><button id="roi-mask" class="button small secondary" type="button" data-i18n="outside_mask">Outside mask</button></div>
+            </div>
+            <button id="analyze" class="button primary full" type="button" data-i18n="analyze">Analyze selected person</button>
+            <div id="analysis" class="analysis" data-i18n="analysis_hint">Choose a frame and press Analyze to see a reproducible preview metric.</div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="download" class="download-section">
+        <div>
+          <p class="eyebrow" data-i18n="distribution">PUBLIC DISTRIBUTION</p>
+          <h2 data-i18n="download_title">Install the complete desktop workflow</h2>
+          <p data-i18n="download_copy">The web installer is a small bootstrap. It shows the real download plan, resumes interrupted downloads, verifies SHA-256 and installs the pinned TOTO components atomically.</p>
+        </div>
+        <a id="download-main" class="button primary" href="https://github.com/TOTO-Toolkit/TOTO-public/releases/download/v0.2.0-public-beta.2/TOTO-Setup-Web.exe" data-i18n="download_windows">Download Windows installer</a>
+      </section>
+
+      <footer>
+        <span>TOTO · Toolkit for Open Tracking and Observation</span>
+        <span>TeHealP@PUCP · Fabian A. Nana</span>
+      </footer>
+    </main>
+    <script src="demo.js"></script>
+  </body>
+</html>
