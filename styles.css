@@ -18,6 +18,7 @@ body.dark { --bg: #0c1527; --surface: #14223a; --surface-2: #1a2d4a; --ink: #f4f
 a { color: inherit; }
 .topbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 12px clamp(18px, 5vw, 72px); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
 .brand img { display: block; width: 150px; height: auto; }
+body.dark .brand img { filter: brightness(0) invert(1); }
 .nav { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; }
 .nav a { text-decoration: none; }
 .nav a:hover { color: var(--accent-dark); }
