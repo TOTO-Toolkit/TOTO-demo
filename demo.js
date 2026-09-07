@@ -6,7 +6,7 @@ const MODEL_NAME = "MoveNet MultiPose Lightning";
 // The detector resizes internally, but feeding it a full 1080p/4K video still
 // makes every browser copy and scale a very large frame before inference.
 // Keep the demo responsive while preserving the video's original coordinates
-// for the overlay and the downloadable JSON.
+// for the overlay and the optional user-triggered CSV download.
 const MAX_INFERENCE_DIMENSION = 512;
 const MAX_INFERENCE_FPS = 8;
 const KEYPOINT_NAMES = [
@@ -36,11 +36,11 @@ const copy = {
     ready: "Listo para cargar un vídeo", runtime: "Runtime", model_hint: "Carga el modelo para activar la inferencia.",
     visuals: "Capas visuales", skeleton: "Esqueleto", boxes: "Cajas", keypoints: "Puntos", confidence: "Confianza mínima",
     metric_frames: "Frames", metric_people: "Personas", metric_fps: "FPS modelo", metric_backend: "Backend",
-    analysis_hint: "Carga el modelo y procesa un vídeo para obtener resultados reales.", download_results: "Descargar resultados JSON",
-    privacy_note: "Privacidad: el archivo se lee en el navegador mediante una URL local. TOTO-demo no recibe el vídeo.",
+    analysis_hint: "Carga el modelo y procesa un vídeo para obtener resultados reales.", download_results: "Guardar CSV (opcional)",
+    privacy_note: "Privacidad: el vídeo y las poses quedan solo en la memoria temporal de esta pestaña. No se suben ni se guardan en GitHub. Solo se descarga un CSV si tú lo eliges.",
     proof_one_title: "Modelo cargado", proof_one_copy: "MoveNet MultiPose Lightning se inicializa de verdad con TensorFlow.js y devuelve hasta seis personas.",
     proof_two_title: "Vídeo del usuario", proof_two_copy: "Puedes usar un archivo del teléfono o de la computadora; el procesamiento ocurre en la pestaña.",
-    proof_three_title: "Salida descargable", proof_three_copy: "Cada frame procesado se conserva en JSON con tiempo, personas, puntos y confianza.",
+    proof_three_title: "Salida bajo tu control", proof_three_copy: "Los resultados quedan en la caché temporal y solo se descargan si eliges Guardar CSV.",
     distribution: "DISTRIBUCIÓN PÚBLICA", download_title: "Instala el flujo completo de escritorio",
     download_copy: "El instalador web es un bootstrap separado del programa. Descarga los componentes desde la distribución de GitHub, verifica SHA-256, conserva las descargas reanudables y crea el acceso directo de TOTO.",
     poses: "poses", loading: "Cargando el modelo…", model_ready: "Modelo listo", processing: "Procesando vídeo…", stopped: "Procesamiento detenido",
@@ -59,11 +59,11 @@ const copy = {
     ready: "Ready for a video", runtime: "Runtime", model_hint: "Load the model to enable inference.",
     visuals: "Visual layers", skeleton: "Skeleton", boxes: "Boxes", keypoints: "Keypoints", confidence: "Minimum confidence",
     metric_frames: "Frames", metric_people: "People", metric_fps: "Model FPS", metric_backend: "Backend",
-    analysis_hint: "Load the model and process a video to get real results.", download_results: "Download JSON results",
-    privacy_note: "Privacy: the file is read in your browser through a local object URL. TOTO-demo never receives the video.",
+    analysis_hint: "Load the model and process a video to get real results.", download_results: "Save CSV (optional)",
+    privacy_note: "Privacy: the video and poses stay only in this tab's temporary memory. They are not uploaded or saved to GitHub. A CSV is downloaded only if you choose it.",
     proof_one_title: "Loaded model", proof_one_copy: "MoveNet MultiPose Lightning is initialized through TensorFlow.js and returns up to six people.",
     proof_two_title: "User video", proof_two_copy: "Use a file from your phone or computer; processing happens in this tab.",
-    proof_three_title: "Downloadable output", proof_three_copy: "Every processed frame is kept in JSON with time, people, keypoints and confidence.",
+    proof_three_title: "Output under your control", proof_three_copy: "Results stay in temporary tab memory and download only when you choose Save CSV.",
     distribution: "PUBLIC DISTRIBUTION", download_title: "Install the complete desktop workflow",
     download_copy: "The web installer is a bootstrap separate from the application. It downloads GitHub distribution components, verifies SHA-256, resumes interrupted downloads and creates the TOTO shortcut.",
     poses: "poses", loading: "Loading model…", model_ready: "Model ready", processing: "Processing video…", stopped: "Processing stopped",
@@ -297,23 +297,64 @@ function serializePose(pose) {
   };
 }
 
+function csvCell(value) {
+  const text = value == null ? "" : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function resultsToCsv() {
+  const filename = $("video-input").files[0]?.name || "";
+  const header = ["video", "frame", "time_s", "pose_id", "pose_score", "x_min", "y_min", "width", "height", "keypoint", "x", "y", "keypoint_score"];
+  const rows = [header];
+  results.forEach((frame) => {
+    const poses = frame.poses || [];
+    if (!poses.length) {
+      rows.push([filename, frame.frame, frame.time_s, "", "", "", "", "", "", "", "", "", ""]);
+      return;
+    }
+    poses.forEach((pose) => {
+      const box = pose.box || {};
+      const points = pose.keypoints || [];
+      if (!points.length) {
+        rows.push([filename, frame.frame, frame.time_s, pose.id, pose.score, box.xMin, box.yMin, box.width, box.height, "", "", "", ""]);
+        return;
+      }
+      points.forEach((point) => rows.push([
+        filename, frame.frame, frame.time_s, pose.id, pose.score,
+        box.xMin, box.yMin, box.width, box.height,
+        point.name, point.x, point.y, point.score,
+      ]));
+    });
+  });
+  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+}
+
 function publishResults() {
+  const link = $("download-results");
+  if (resultUrl) {
+    URL.revokeObjectURL(resultUrl);
+    resultUrl = null;
+  }
+  link.removeAttribute("href");
+  link.download = "toto-browser-poses.csv";
+  link.classList.toggle("hidden", !results.length);
+}
+
+function downloadResultsCsv() {
   if (!results.length) return;
-  const payload = {
-    product: "TOTO browser demo",
-    model: MODEL_NAME,
-    model_url: MODEL_URL,
-    backend: $("backend-value").textContent,
-    source_filename: $("video-input").files[0]?.name || null,
-    video_width: $("source-video").videoWidth,
-    video_height: $("source-video").videoHeight,
-    duration_seconds: $("source-video").duration,
-    frames: results,
-  };
   if (resultUrl) URL.revokeObjectURL(resultUrl);
-  resultUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"}));
-  $("download-results").href = resultUrl;
-  $("download-results").classList.remove("hidden");
+  resultUrl = URL.createObjectURL(new Blob([resultsToCsv()], {type: "text/csv;charset=utf-8"}));
+  const url = resultUrl;
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "toto-browser-poses.csv";
+  link.click();
+  window.setTimeout(() => {
+    if (resultUrl === url) {
+      URL.revokeObjectURL(url);
+      resultUrl = null;
+    }
+  }, 60000);
 }
 
 async function loadModel() {
@@ -564,6 +605,7 @@ $("video-input").addEventListener("change", (event) => prepareVideo(event.target
 $("load-model").addEventListener("click", loadModel);
 $("process").addEventListener("click", processVideo);
 $("stop").addEventListener("click", stopProcessing);
+$("download-results").addEventListener("click", downloadResultsCsv);
 $("source-video").addEventListener("loadedmetadata", () => { resizeCanvas(); updateActionState(); });
 $("source-video").addEventListener("play", syncCachedOverlay);
 $("source-video").addEventListener("pause", syncCachedOverlay);

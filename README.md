@@ -2,8 +2,10 @@
 
 This is the real browser proof for TOTO. It is not a synthetic canvas preview.
 The user selects a local video, the page initializes MoveNet MultiPose Lightning
-through TensorFlow.js, runs inference over the video frames, renders detected
-people/keypoints and exposes the processed frames as a JSON download.
+through TensorFlow.js, runs inference over the video frames and renders detected
+people/keypoints. The video and poses stay in temporary tab memory; nothing is
+uploaded to GitHub or stored by the demo. The user can optionally download a
+CSV locally.
 
 The page source, deployment and web model assets live in
 `TOTO-Toolkit/TOTO-demo` on GitHub. The checked-in MoveNet package was sourced

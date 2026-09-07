@@ -113,8 +113,8 @@
               <div><span data-i18n="metric_backend">Backend</span><strong id="metric-backend">—</strong></div>
             </div>
             <div class="analysis" id="analysis" data-i18n="analysis_hint">Carga el modelo y procesa un vídeo para obtener resultados reales.</div>
-            <a id="download-results" class="button secondary full hidden" download="toto-browser-poses.json" data-i18n="download_results">Descargar resultados JSON</a>
-            <p class="privacy-note" data-i18n="privacy_note">Privacidad: el archivo se lee en el navegador mediante una URL local. TOTO-demo no recibe el vídeo.</p>
+            <button id="download-results" class="button secondary full hidden" type="button" data-i18n="download_results">Guardar CSV (opcional)</button>
+            <p class="privacy-note" data-i18n="privacy_note">Privacidad: el vídeo y las poses quedan solo en la memoria temporal de esta pestaña. No se suben ni se guardan en GitHub. Solo se descarga un CSV si tú lo eliges.</p>
           </aside>
         </div>
       </section>
@@ -122,7 +122,7 @@
       <section class="proof-grid">
         <article><span class="proof-number">01</span><h3 data-i18n="proof_one_title">Modelo cargado</h3><p data-i18n="proof_one_copy">MoveNet MultiPose Lightning se inicializa de verdad con TensorFlow.js y devuelve hasta seis personas.</p></article>
         <article><span class="proof-number">02</span><h3 data-i18n="proof_two_title">Vídeo del usuario</h3><p data-i18n="proof_two_copy">Puedes usar un archivo del teléfono o de la computadora; el procesamiento ocurre en la pestaña.</p></article>
-        <article><span class="proof-number">03</span><h3 data-i18n="proof_three_title">Salida descargable</h3><p data-i18n="proof_three_copy">Cada frame procesado se conserva en JSON con tiempo, personas, puntos y confianza.</p></article>
+        <article><span class="proof-number">03</span><h3 data-i18n="proof_three_title">Salida bajo tu control</h3><p data-i18n="proof_three_copy">Los resultados quedan en la caché temporal y solo se descargan si eliges Guardar CSV.</p></article>
       </section>
 
       <section id="download" class="download-section">
@@ -140,6 +140,6 @@
       </footer>
     </main>
     <noscript>Esta demo necesita JavaScript para cargar el modelo y procesar el vídeo local.</noscript>
-    <script defer src="demo.js?v=0.3.3-cached-overlay"></script>
+    <script defer src="demo.js?v=0.3.4-private-csv"></script>
   </body>
 </html>
