@@ -1,11 +1,17 @@
-# TOTO public demo
+# TOTO browser demo
 
-This directory is a static, dependency-free GitHub Pages demo. It intentionally
-uses a synthetic canvas sequence rather than private video or a browser model.
-It exercises the public interaction surface: playback, frame selection,
-overlay/layer toggles, ranked-person selection, reproducible preview analysis,
-ROI draw/clear, outside-mask mode, zoom, dark/light mode and nine-language
-content switching.
+This is the real browser proof for TOTO. It is not a synthetic canvas preview.
+The user selects a local video, the page initializes MoveNet MultiPose Lightning
+through TensorFlow.js, runs inference over the video frames, renders detected
+people/keypoints and exposes the processed frames as a JSON download.
 
-The download links point to the real `TOTO-Setup-Web-0.2.0.exe` asset in the
-public modular distribution release.
+The page source and deployment live in `TOTO-Toolkit/TOTO-demo` on GitHub. The
+model is fetched from the official TensorFlow Hub URL declared in
+`demo.js`; the video is kept in the browser and is never uploaded to a TOTO
+server. CDN library versions are pinned in `index.html` so a clean browser can
+reproduce the same demo.
+
+For local QA, serve this directory over HTTP (for example with any static file
+server) and open `index.html` through `http://localhost`. Opening the file
+directly may prevent the browser from loading the model because of origin and
+WebGL restrictions.
