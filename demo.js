@@ -86,6 +86,7 @@ let inferenceContext = null;
 let lastInferenceMediaTime = -Infinity;
 let smoothedInferenceFps = null;
 let pendingSeekCancel = null;
+let playbackOverlayRaf = null;
 
 function t(key) {
   return (copy[locale] || copy.es)[key] || copy.es[key] || key;
@@ -124,6 +125,10 @@ function resetResults() {
   frameIndex = 0;
   lastInferenceMediaTime = -Infinity;
   smoothedInferenceFps = null;
+  if (playbackOverlayRaf !== null) {
+    cancelAnimationFrame(playbackOverlayRaf);
+    playbackOverlayRaf = null;
+  }
   $("metric-frames").textContent = "0";
   $("metric-people").textContent = "0";
   $("metric-fps").textContent = "—";
@@ -386,6 +391,43 @@ function seekVideo(video, targetTime) {
   });
 }
 
+function cachedPosesAtTime(time) {
+  if (!results.length) return [];
+  let low = 0;
+  let high = results.length - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Number(results[middle].time_s) < time) low = middle;
+    else high = middle - 1;
+  }
+  const nextIndex = Math.min(results.length - 1, low + 1);
+  const previous = results[low];
+  const next = results[nextIndex];
+  const previousDistance = Math.abs(Number(previous.time_s) - time);
+  const nextDistance = Math.abs(Number(next.time_s) - time);
+  return (nextDistance < previousDistance ? next : previous)?.poses || [];
+}
+
+function syncCachedOverlay() {
+  const video = $("source-video");
+  if (results.length) {
+    lastPoses = cachedPosesAtTime(Number(video.currentTime) || 0);
+    $("pose-count").textContent = `${lastPoses.length} ${t("poses")}`;
+    drawOverlay(lastPoses);
+  }
+  if (!video.paused && !video.ended) {
+    if (playbackOverlayRaf === null) {
+      playbackOverlayRaf = requestAnimationFrame(() => {
+        playbackOverlayRaf = null;
+        syncCachedOverlay();
+      });
+    }
+  } else if (playbackOverlayRaf !== null) {
+    cancelAnimationFrame(playbackOverlayRaf);
+    playbackOverlayRaf = null;
+  }
+}
+
 async function processFrame(metadata, token) {
   if (!processing || token !== runToken) return;
   const video = $("source-video");
@@ -482,6 +524,7 @@ function finishProcessing() {
   $("source-video").pause();
   $("progress-bar").style.width = "100%";
   publishResults();
+  syncCachedOverlay();
   setStatus(t("finished"), "success");
   $("analysis").textContent = `${t("finished")}: ${results.length} frames`;
   updateActionState();
@@ -522,7 +565,12 @@ $("load-model").addEventListener("click", loadModel);
 $("process").addEventListener("click", processVideo);
 $("stop").addEventListener("click", stopProcessing);
 $("source-video").addEventListener("loadedmetadata", () => { resizeCanvas(); updateActionState(); });
-$("source-video").addEventListener("ended", finishProcessing);
+$("source-video").addEventListener("play", syncCachedOverlay);
+$("source-video").addEventListener("pause", syncCachedOverlay);
+$("source-video").addEventListener("timeupdate", syncCachedOverlay);
+$("source-video").addEventListener("seeking", syncCachedOverlay);
+$("source-video").addEventListener("seeked", syncCachedOverlay);
+$("source-video").addEventListener("ended", () => { finishProcessing(); syncCachedOverlay(); });
 $("confidence").addEventListener("input", (event) => {
   $("confidence-value").textContent = `${event.target.value}%`;
   drawOverlay(lastPoses);
