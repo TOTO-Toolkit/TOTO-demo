@@ -85,6 +85,7 @@ let inferenceCanvas = null;
 let inferenceContext = null;
 let lastInferenceMediaTime = -Infinity;
 let smoothedInferenceFps = null;
+let pendingSeekCancel = null;
 
 function t(key) {
   return (copy[locale] || copy.es)[key] || copy.es[key] || key;
@@ -353,26 +354,42 @@ async function loadModel() {
   updateActionState();
 }
 
-function scheduleNextFrame(token) {
-  const video = $("source-video");
-  if (!processing || token !== runToken) return;
-  if (typeof video.requestVideoFrameCallback === "function") {
-    video.requestVideoFrameCallback((now, metadata) => processFrame(now, metadata, token));
-  } else {
-    requestAnimationFrame((now) => processFrame(now, {mediaTime: video.currentTime}, token));
-  }
+function seekVideo(video, targetTime) {
+  return new Promise((resolve) => {
+    if (pendingSeekCancel) pendingSeekCancel();
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const target = Math.max(0, Math.min(targetTime, Math.max(0, duration - 0.001)));
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("error", onError);
+      if (pendingSeekCancel === cancel) pendingSeekCancel = null;
+      resolve(ok);
+    };
+    const onSeeked = () => finish(true);
+    const onError = () => finish(false);
+    const cancel = () => finish(false);
+    pendingSeekCancel = cancel;
+    video.addEventListener("seeked", onSeeked, {once: true});
+    video.addEventListener("error", onError, {once: true});
+    if (video.readyState >= 2 && Math.abs(video.currentTime - target) < 0.001) {
+      Promise.resolve().then(() => finish(true));
+      return;
+    }
+    try {
+      video.currentTime = target;
+    } catch (_error) {
+      finish(false);
+    }
+  });
 }
 
-async function processFrame(now, metadata, token) {
+async function processFrame(metadata, token) {
   if (!processing || token !== runToken) return;
   const video = $("source-video");
   const mediaTime = Number(metadata?.mediaTime ?? video.currentTime);
-  const minMediaGap = 1 / MAX_INFERENCE_FPS;
-  if (Number.isFinite(mediaTime) && mediaTime - lastInferenceMediaTime < minMediaGap) {
-    if (video.ended || video.currentTime >= video.duration - 0.03) finishProcessing();
-    else scheduleNextFrame(token);
-    return;
-  }
   const started = performance.now();
   try {
     const input = inferenceFrame(video);
@@ -401,13 +418,27 @@ async function processFrame(now, metadata, token) {
   } catch (error) {
     stopProcessing();
     setStatus(`${t("error")}: ${error?.message || String(error)}`, "error");
-    return;
+    return false;
   }
-  if ($("source-video").ended || $("source-video").currentTime >= $("source-video").duration - 0.03) {
-    finishProcessing();
-  } else {
-    scheduleNextFrame(token);
+  return true;
+}
+
+async function runProcessingLoop(token) {
+  const video = $("source-video");
+  const duration = Number(video.duration);
+  const lastFrameTime = Math.max(0, duration - 0.02);
+  const sampleInterval = 1 / MAX_INFERENCE_FPS;
+  let targetTime = 0;
+  while (processing && token === runToken) {
+    const seekOk = await seekVideo(video, targetTime);
+    if (!seekOk || !processing || token !== runToken) return;
+    const atEnd = targetTime >= lastFrameTime;
+    const ok = await processFrame({mediaTime: video.currentTime}, token);
+    if (!ok || atEnd || !processing || token !== runToken) break;
+    targetTime += sampleInterval;
+    if (targetTime > lastFrameTime) targetTime = lastFrameTime;
   }
+  if (processing && token === runToken) finishProcessing();
 }
 
 async function processVideo() {
@@ -423,26 +454,33 @@ async function processVideo() {
   const token = runToken;
   processing = true;
   video.pause();
+  setStatus(t("processing"));
+  $("analysis").textContent = t("processing");
+  updateActionState();
   try {
-    video.currentTime = 0;
-    await video.play();
+    const seekOk = await seekVideo(video, 0);
+    if (!seekOk) throw new Error("No se pudo preparar el primer frame del vídeo");
   } catch (error) {
     processing = false;
     setStatus(`${t("error")}: ${error?.message || String(error)}`, "error");
     updateActionState();
     return;
   }
-  setStatus(t("processing"));
-  $("analysis").textContent = t("processing");
-  updateActionState();
-  scheduleNextFrame(token);
+  runProcessingLoop(token).catch((error) => {
+    if (!processing || token !== runToken) return;
+    stopProcessing();
+    setStatus(`${t("error")}: ${error?.message || String(error)}`, "error");
+  });
 }
 
 function finishProcessing() {
   if (!processing) return;
   processing = false;
   runToken += 1;
+  pendingSeekCancel?.();
+  pendingSeekCancel = null;
   $("source-video").pause();
+  $("progress-bar").style.width = "100%";
   publishResults();
   setStatus(t("finished"), "success");
   $("analysis").textContent = `${t("finished")}: ${results.length} frames`;
@@ -453,6 +491,8 @@ function stopProcessing() {
   if (!processing) return;
   processing = false;
   runToken += 1;
+  pendingSeekCancel?.();
+  pendingSeekCancel = null;
   $("source-video").pause();
   publishResults();
   setStatus(t("stopped"));
