@@ -3,6 +3,12 @@
 const RELEASE_INSTALLER = "https://github.com/TOTO-Toolkit/TOTO-public/releases/download/v0.2.0-public-beta.7/TOTO-Setup.exe";
 const MODEL_URL = "./models/movenet-multipose-lightning-1/model.json";
 const MODEL_NAME = "MoveNet MultiPose Lightning";
+// The detector resizes internally, but feeding it a full 1080p/4K video still
+// makes every browser copy and scale a very large frame before inference.
+// Keep the demo responsive while preserving the video's original coordinates
+// for the overlay and the downloadable JSON.
+const MAX_INFERENCE_DIMENSION = 512;
+const MAX_INFERENCE_FPS = 8;
 const KEYPOINT_NAMES = [
   "nose", "left_eye", "right_eye", "left_ear", "right_ear",
   "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
@@ -75,6 +81,10 @@ let frameIndex = 0;
 let results = [];
 let lastPoses = [];
 let resultUrl = null;
+let inferenceCanvas = null;
+let inferenceContext = null;
+let lastInferenceMediaTime = -Infinity;
+let smoothedInferenceFps = null;
 
 function t(key) {
   return (copy[locale] || copy.es)[key] || copy.es[key] || key;
@@ -111,6 +121,8 @@ function updateActionState() {
 function resetResults() {
   results = [];
   frameIndex = 0;
+  lastInferenceMediaTime = -Infinity;
+  smoothedInferenceFps = null;
   $("metric-frames").textContent = "0";
   $("metric-people").textContent = "0";
   $("metric-fps").textContent = "—";
@@ -120,6 +132,63 @@ function resetResults() {
     URL.revokeObjectURL(resultUrl);
     resultUrl = null;
   }
+}
+
+function resizeInferenceCanvas(video) {
+  const width = video.videoWidth || 0;
+  const height = video.videoHeight || 0;
+  if (!width || !height) return null;
+  if (!inferenceCanvas) {
+    inferenceCanvas = document.createElement("canvas");
+    inferenceContext = inferenceCanvas.getContext("2d", {alpha: false, desynchronized: true})
+      || inferenceCanvas.getContext("2d");
+    if (inferenceContext) {
+      inferenceContext.imageSmoothingEnabled = true;
+      inferenceContext.imageSmoothingQuality = "low";
+    }
+  }
+  const scale = Math.min(1, MAX_INFERENCE_DIMENSION / Math.max(width, height));
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+  if (inferenceCanvas.width !== targetWidth || inferenceCanvas.height !== targetHeight) {
+    inferenceCanvas.width = targetWidth;
+    inferenceCanvas.height = targetHeight;
+  }
+  return inferenceCanvas;
+}
+
+function inferenceFrame(video) {
+  const canvas = resizeInferenceCanvas(video);
+  if (!canvas || !inferenceContext) return null;
+  inferenceContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function restoreVideoCoordinates(poses, video, input) {
+  if (!input || !video.videoWidth || !video.videoHeight) return poses || [];
+  const scaleX = video.videoWidth / input.width;
+  const scaleY = video.videoHeight / input.height;
+  return (poses || []).map((pose) => {
+    const box = pose.box;
+    const scaledBox = box ? {...box} : null;
+    if (scaledBox) {
+      if (Number.isFinite(box.xMin)) scaledBox.xMin = box.xMin * scaleX;
+      if (Number.isFinite(box.yMin)) scaledBox.yMin = box.yMin * scaleY;
+      if (Number.isFinite(box.xMax)) scaledBox.xMax = box.xMax * scaleX;
+      if (Number.isFinite(box.yMax)) scaledBox.yMax = box.yMax * scaleY;
+      if (Number.isFinite(box.width)) scaledBox.width = box.width * scaleX;
+      if (Number.isFinite(box.height)) scaledBox.height = box.height * scaleY;
+    }
+    return {
+      ...pose,
+      box: scaledBox,
+      keypoints: (pose.keypoints || []).map((point) => ({
+        ...point,
+        x: point.x * scaleX,
+        y: point.y * scaleY,
+      })),
+    };
+  });
 }
 
 function resizeCanvas() {
@@ -296,19 +365,33 @@ function scheduleNextFrame(token) {
 
 async function processFrame(now, metadata, token) {
   if (!processing || token !== runToken) return;
+  const video = $("source-video");
+  const mediaTime = Number(metadata?.mediaTime ?? video.currentTime);
+  const minMediaGap = 1 / MAX_INFERENCE_FPS;
+  if (Number.isFinite(mediaTime) && mediaTime - lastInferenceMediaTime < minMediaGap) {
+    if (video.ended || video.currentTime >= video.duration - 0.03) finishProcessing();
+    else scheduleNextFrame(token);
+    return;
+  }
   const started = performance.now();
   try {
-    const poses = await detector.estimatePoses($("source-video"));
+    const input = inferenceFrame(video);
+    if (!input) throw new Error("El vídeo todavía no tiene un frame disponible");
+    const poses = await detector.estimatePoses(input);
     if (!processing || token !== runToken) return;
-    lastPoses = poses || [];
-    const mediaTime = Number(metadata?.mediaTime ?? $("source-video").currentTime);
+    lastInferenceMediaTime = mediaTime;
+    lastPoses = restoreVideoCoordinates(poses, video, input);
     results.push({
       frame: frameIndex++,
       time_s: Number.isFinite(mediaTime) ? mediaTime : 0,
       poses: lastPoses.map(serializePose),
     });
     const elapsed = Math.max(1, performance.now() - started);
-    $("metric-fps").textContent = (1000 / elapsed).toFixed(1);
+    const instantFps = 1000 / elapsed;
+    smoothedInferenceFps = smoothedInferenceFps == null
+      ? instantFps
+      : (smoothedInferenceFps * 0.7) + (instantFps * 0.3);
+    $("metric-fps").textContent = smoothedInferenceFps.toFixed(1);
     $("metric-frames").textContent = String(results.length);
     $("metric-people").textContent = String(Math.max(Number($("metric-people").textContent) || 0, lastPoses.length));
     $("pose-count").textContent = `${lastPoses.length} ${t("poses")}`;
