@@ -1,6 +1,6 @@
 "use strict";
 
-const RELEASE_INSTALLER = "https://github.com/TOTO-Toolkit/TOTO-public/releases/download/v0.2.0-public-beta.6/TOTO-Setup-Web.exe";
+const RELEASE_INSTALLER = "https://github.com/TOTO-Toolkit/TOTO-public/releases/download/v0.2.0-public-beta.7/TOTO-Setup-Web.exe";
 const MODEL_URL = "https://tfhub.dev/google/tfjs-model/movenet/multipose/lightning/1";
 const MODEL_NAME = "MoveNet MultiPose Lightning";
 const KEYPOINT_NAMES = [
